@@ -92,7 +92,8 @@ func main() {
 
 	// Test CRUD
 	//testCreate(db)
-	testQuery(db)
+	//testQuery(db)
+	testUpdate(db)
 }
 
 func testCreate(gormDb *gorm.DB) {
@@ -454,7 +455,208 @@ func testQuery(gormDb *gorm.DB) {
 		return
 	}
 	fmt.Printf("findAllUser len =  %d , findAllUser = %v\n", len(findAllUser), findAllUser)
-
 	// Not 条件 用法与 Where 类似
+	// Or 条件
+	/*db.Where("role = ?", "admin").Or("role = ?", "super_admin").Find(&users)
+	// SELECT * FROM users WHERE role = 'admin' OR role = 'super_admin';
+
+	// Struct
+	db.Where("name = 'jinzhu'").Or(User{Name: "jinzhu 2", Age: 18}).Find(&users)
+	// SELECT * FROM users WHERE name = 'jinzhu' OR (name = 'jinzhu 2' AND age = 18);
+
+	// Map
+	db.Where("name = 'jinzhu'").Or(map[string]interface{}{"name": "jinzhu 2", "age": 18}).Find(&users)
+	// SELECT * FROM users WHERE name = 'jinzhu' OR (name = 'jinzhu 2' AND age = 18);*/
+
+	var selectUser []User
+	// Select 允许从数据库中检索哪些字段， 默认情况下，GORM 会检索所有字段。
+	result = gormDb.Select("name").Where(filters).Find(&selectUser)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	for i, user := range selectUser {
+		fmt.Printf("%d := %+v\n", i, user)
+	}
+
+	/*db.Select([]string{"name", "age"}).Find(&users)
+	// SELECT name, age FROM users;
+
+	db.Table("users").Select("COALESCE(age,?)", 42).Rows()
+	// SELECT COALESCE(age,'42') FROM users;*/
+
+	// Order
+	orderUser := make([]User, 0)
+	result = gormDb.Order("age desc, name").Find(&orderUser)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("orderUser len =  %d , orderUser[0] = %v\n", len(orderUser), orderUser[0])
+
+	// Order
+	orderUser2 := make([]User, 0)
+	result = gormDb.Order("age desc").Order("name").Find(&orderUser2)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("orderUser2 len =  %d , orderUser2[0] = %v\n", len(orderUser2), orderUser2[0])
+
+	// Limit & Offset
+	orderUser3 := make([]User, 0)
+	result = gormDb.Limit(10).Offset(5).Find(&orderUser3)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("orderUser3 len =  %d , orderUser3[0] = %v\n", len(orderUser3), orderUser3[0])
+
+	// Group By & Having &Distinct &Joins
+	// Todo
+
+	// Scan
+
+	var names []string
+
+	result = gormDb.Table("t_users").Select("name").Where("name != ?", "").Find(&names)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("len(names) = %d,names = %v\n", len(names), names)
+
+	var names2 []string
+	result = gormDb.Table("t_users").Select("name").Find(&names2, "name != ?", "")
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("len(names2) = %d,names2 = %v\n", len(names2), names2)
+
+	var names3 []string
+	result = gormDb.Raw("SELECT name FROM t_users WHERE name != ?", "").Find(&names3)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("len(names3) = %d,names3 = %v\n", len(names3), names3)
+
+	var names4 []string
+	result = gormDb.Raw("SELECT name FROM t_users WHERE name != ?", "haha").Find(&names3)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("len(names4) = %d,names4 = %v\n", len(names4), names4)
+
+	var ages []string
+	result = gormDb.Raw("SELECT age FROM t_users WHERE age is not null").Find(&ages)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("len(ages) = %d,ages = %v\n", len(ages), ages)
+
+	var ages1 []string
+	result = gormDb.Table("t_users").Select("age").Distinct("age").Find(&ages1, "age is not null")
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("len(ages1) = %d,ages1 = %v\n", len(ages1), ages1)
+
+	// 高级查询
+	// TODO
+
+}
+
+func testUpdate(gormDb *gorm.DB) {
+
+	firstUser := &User{}
+	// 获取第一条记录（主键升序）
+	result := gormDb.First(&firstUser)
+	if result.Error != nil {
+
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			fmt.Println("First RecordNotFound")
+			return
+		}
+
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("firstUser = %+v\n", firstUser)
+	firstUser.Age = 100
+
+	// Save 会保存所有的字段，即使字段是零值
+	//  UPDATE `t_users` SET `name`='sharpe-x',`email`='default@gmail.com',`age`=100,`birthday`='2022-01-02 16:53:41.544',`member_number`=NULL,`activated_at`=NULL,`created_at`=1641113621,`update_on`=1641213885 WHERE `id` = 200
+	result = gormDb.Save(firstUser)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+
+	// update
+	//  UPDATE `t_users` SET `age`=25,`update_on`=1641214140 WHERE age = 20
+	result = gormDb.Model(&User{}).Where("age = ?", 20).Update("age", 25)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+
+	lastUser := new(User)
+	result = gormDb.Last(&lastUser)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
+
+	result = gormDb.Model(&lastUser).Update("age", 66)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
+
+	//  UPDATE `t_users` SET `birthday`='2022-01-03 20:57:03.746',`update_on`=1641214623 WHERE Birthday is null AND `id` = 217
+	// 根据条件和 model 的值进行更新
+	result = gormDb.Model(&lastUser).Where("birthday is null").Update("birthday", time.Now())
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
+
+	// 更新多列
+	// 当使用 struct 更新时，默认情况下，GORM 只会更新非零值的字段
+	// UPDATE `t_users` SET `name`='hello-update',`email`='hello-update@gmail.com',`update_on`=1641214897 WHERE `id` = 217
+	mail := "hello-update@gmail.com"
+	result = gormDb.Model(&lastUser).Updates(User{
+		Name:  "hello-update",
+		Email: &mail,
+	})
+
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
+
+	// 根据 `map` 更新属性
+	//  UPDATE `t_users` SET `age`=0,`birthday`='2021-01-03 21:05:06.072',`name`='hello-update-map',`update_on`=1641215106 WHERE `id` = 217
+	result = gormDb.Model(&lastUser).Updates(
+		map[string]interface{}{
+			"name":     "hello-update-map",
+			"age":      0,
+			"birthday": time.Now().AddDate(-1, 0, 0),
+		})
+
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
 
 }
