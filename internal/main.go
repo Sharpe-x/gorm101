@@ -659,4 +659,79 @@ func testUpdate(gormDb *gorm.DB) {
 	}
 	fmt.Printf("lastUser = %+v\n", lastUser)
 
+	result = gormDb.Model(&lastUser).Select("name").Updates(map[string]interface{}{"name": "hello-updates-select",
+		"age": 18})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
+
+	result = gormDb.Model(&lastUser).Omit("name").Updates(map[string]interface{}{"name": "hello-updates-select2",
+		"age": 18})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
+
+	// Select 除 email 外的所有字段（包括零值字段的所有字段）
+	b10year := time.Now().AddDate(-10, 0, 0)
+	result = gormDb.Model(&lastUser).Select("*").Omit("email", "id").Updates(User{
+		Name:     "1223333",
+		Age:      0,
+		Birthday: &b10year,
+	})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("lastUser = %+v\n", lastUser)
+
+	// GORM 支持 BeforeSave、BeforeUpdate、AfterSave、AfterUpdate hook
+	// Todo
+
+	// 批量更新
+	result = gormDb.Model(User{}).Where("age is not null").Updates(User{Age: 18})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+
+	result = gormDb.Model(User{}).Where("age is null").Updates(User{Age: 18})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	// 阻止全局更新
+	//在没有任何条件的情况下执行批量更新，默认情况下，GORM 不会执行该操作，并返回 ErrMissingWhereClause 错误
+	// 对此，你必须加一些条件，或者使用原生 SQL，或者启用 AllowGlobalUpdate 模式，例如
+	result = gormDb.Model(&User{}).Where("1 = 1").Updates(User{
+		Age: 19,
+	})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+
+	result = gormDb.Exec("UPDATE t_users SET age = ?", 23)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+
+	result = gormDb.Session(&gorm.Session{
+		AllowGlobalUpdate: true,
+	}).Model(&User{}).Updates(User{
+		Age:      35,
+		Birthday: &b10year,
+	})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("RowsAffected = %d\n", result.RowsAffected)
+
+	//使用 SQL 表达式更新
+	// Todo
 }
