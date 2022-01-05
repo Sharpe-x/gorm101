@@ -8,6 +8,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+	"gorm.io/plugin/soft_delete"
 	"log"
 	"time"
 )
@@ -39,7 +40,8 @@ type User struct {
 	CreatedAt int64 `gorm:"autoCreateTime"`
 	// UpdatedAt time.Time
 	// 要使用不同名称的字段，您可以配置 autoCreateTime、autoUpdateTime 标签
-	UpdateOn int64 `gorm:"autoUpdateTime"`
+	UpdateOn  int64                 `gorm:"autoUpdateTime"`
+	IsDeleted soft_delete.DeletedAt `gorm:"softDelete:flag default:0"`
 }
 
 func initTable(m gorm.Migrator) error {
@@ -49,7 +51,8 @@ func initTable(m gorm.Migrator) error {
 			return err
 		}
 	}
-	return nil
+
+	return m.AutoMigrate(&User{})
 }
 
 // BeforeCreate https://gorm.io/zh_CN/docs/hooks.html hook 函数
@@ -93,7 +96,8 @@ func main() {
 	// Test CRUD
 	//testCreate(db)
 	//testQuery(db)
-	testUpdate(db)
+	//testUpdate(db)
+	testDelete(db)
 }
 
 func testCreate(gormDb *gorm.DB) {
@@ -734,4 +738,59 @@ func testUpdate(gormDb *gorm.DB) {
 
 	//使用 SQL 表达式更新
 	// Todo
+}
+
+func testDelete(gormDb *gorm.DB) {
+	firstUser := new(User)
+	result := gormDb.Model(&User{}).First(&firstUser)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			fmt.Println("First RecordNotFound")
+		} else {
+			fmt.Println(result.Error.Error())
+			return
+		}
+	}
+
+	fmt.Printf("firstUser = %+v \n", firstUser)
+
+	//删除一条记录时，删除对象需要指定主键
+	result = gormDb.Where("is_deleted = ?", 0).Delete(firstUser)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("after delete firstUser = %+v \n", firstUser)
+
+	//DELETE FROM `t_users` WHERE name = 'sharpe-x-2' AND `t_users`.`id` = 3
+	/*result = gormDb.Where("name = ?", "sharpe-x-2").Delete(&firstUser)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}*/
+
+	// 根据主键删除
+	// UPDATE `t_users` SET `is_deleted`=1641371984 WHERE `t_users`.`id` = 10 AND `t_users`.`is_deleted` = 0
+	result = gormDb.Delete(&User{}, 10)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+
+	// 批量删除
+	result = gormDb.Delete(&User{}, "is_deleted = ?", 0)
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+
+	result = gormDb.Model(&User{}).Unscoped().Where("is_deleted != ?", 0).Updates(map[string]interface{}{
+		"is_deleted": 0,
+	})
+	if result.Error != nil {
+		fmt.Println(result.Error.Error())
+		return
+	}
+	fmt.Printf("%d\n", result.RowsAffected)
+
 }
