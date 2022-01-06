@@ -97,7 +97,8 @@ func main() {
 	//testCreate(db)
 	//testQuery(db)
 	//testUpdate(db)
-	testDelete(db)
+	//testDelete(db)
+	testTransaction(db)
 }
 
 func testCreate(gormDb *gorm.DB) {
@@ -793,4 +794,59 @@ func testDelete(gormDb *gorm.DB) {
 	}
 	fmt.Printf("%d\n", result.RowsAffected)
 
+}
+
+func testTransaction(gormDb *gorm.DB) {
+	err := gormDb.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&User{Age: 19, Name: "hello-transaction"}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Create(&User{Age: 20, Name: "hello-transaction2"}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("err = %v\n", err)
+		return
+	}
+
+	// 嵌套事务
+	// Todo
+
+	// 手动控制事务
+	tx := gormDb.Begin()
+	err = transaction(tx)
+	if err != nil {
+		fmt.Printf("err = %v\n", err)
+		tx.Rollback()
+		return
+	}
+	tx.Commit()
+}
+
+func transaction(tx *gorm.DB) error {
+
+	if err := tx.Create(&User{ //ID: 20,
+		Name: "hello-transaction3",
+	}).Error; err != nil {
+		return err
+	}
+
+	if err := tx.Create(&User{ //ID: 20,
+		Name: "hello-transaction4",
+	}).Error; err != nil {
+		return err
+	}
+
+	if err := tx.Create(&User{
+		ID:   20,
+		Name: "hello-transaction5",
+	}).Error; err != nil {
+		return err
+	}
+
+	return nil
 }
